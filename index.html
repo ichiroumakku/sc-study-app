@@ -1,1 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>支援士クエスト - ログイン</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body {
+    font-family: -apple-system, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+  }
+  .card {
+    background: #1e293b;
+    padding: 32px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 360px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  h1 {
+    font-size: 20px;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #fff;
+    box-sizing: border-box;
+    font-size: 16px;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #22c55e;
+    color: #0f172a;
+    font-weight: bold;
+    font-size: 16px;
+    margin-top: 8px;
+  }
+  button.secondary {
+    background: transparent;
+    border: 1px solid #22c55e;
+    color: #22c55e;
+  }
+  #message {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 14px;
+    color: #fbbf24;
+  }
+  #welcome {
+    display: none;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🛡️ 支援士クエスト</h1>
+
+  <div id="authForm">
+    <input type="email" id="email" placeholder="メールアドレス">
+    <input type="password" id="password" placeholder="パスワード(6文字以上)">
+    <button onclick="signUp()">新規登録</button>
+    <button class="secondary" onclick="signIn()">ログイン</button>
+  </div>
+
+  <div id="welcome">
+    <p id="welcomeText"></p>
+    <button onclick="signOut()">ログアウト</button>
+  </div>
+
+  <div id="message"></div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://gmtfzlfxswzkwqxnldpw.supabase.co";
+  const SUPABASE_ANON_KEY = sb_publishable_MjnrZuoAiuyTy5uu1f1tpg_zcgdHLEJ;
+
+  const { createClient } = supabase;
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function showMessage(text) {
+    document.getElementById('message').innerText = text;
+  }
+
+  async function signUp() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const { data, error } = await sb.auth.signUp({ email, password });
+    if (error) {
+      showMessage("登録エラー: " + error.message);
+    } else {
+      showMessage("登録成功!そのままログインしてください。");
+    }
+  }
+
+  async function signIn() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      showMessage("ログインエラー: " + error.message);
+    } else {
+      checkUser();
+    }
+  }
+
+  async function signOut() {
+    await sb.auth.signOut();
+    checkUser();
+  }
+
+  async function checkUser() {
+    const { data: { user } } = await sb.auth.getUser();
+    if (user) {
+      document.getElementById('authForm').style.display = 'none';
+      document.getElementById('welcome').style.display = 'block';
+      document.getElementById('welcomeText').innerText = "ようこそ、" + user.email + " さん!";
+      showMessage("");
+    } else {
+      document.getElementById('authForm').style.display = 'block';
+      document.getElementById('welcome').style.display = 'none';
+    }
+  }
+
+  checkUser();
+</script>
+
+</body>
+</html>
 
