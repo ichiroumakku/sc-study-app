@@ -64,14 +64,9 @@
     font-size: 14px;
     color: #fbbf24;
   }
-  #welcome {
-    display: none;
-  }
   #quizArea {
     display: none;
   }
-
-  /* --- クイズ画面用スタイル --- */
   .top-bar {
     display: flex;
     justify-content: space-between;
@@ -117,10 +112,6 @@
     font-size: 14px;
     box-sizing: border-box;
   }
-  .choice.selected {
-    border-color: #22c55e;
-    background: #14532d;
-  }
   .choice.correct {
     border-color: #22c55e;
     background: #14532d;
@@ -155,6 +146,17 @@
     color: #cbd5e1;
     white-space: pre-wrap;
   }
+  .loading {
+    text-align: center;
+    color: #94a3b8;
+    padding: 40px 0;
+  }
+  .progress {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 8px;
+    text-align: right;
+  }
 </style>
 </head>
 <body>
@@ -162,7 +164,6 @@
 <div class="card">
   <h1>🛡️ 支援士クエスト</h1>
 
-  <!-- ログインフォーム -->
   <div id="authForm">
     <input type="email" id="email" placeholder="メールアドレス">
     <input type="password" id="password" placeholder="パスワード(6文字以上)">
@@ -171,14 +172,12 @@
     <div id="message"></div>
   </div>
 
-  <!-- ログイン後のクイズ画面 -->
   <div id="quizArea">
     <div class="top-bar">
       <span id="userLabel"></span>
       <button onclick="signOut()">ログアウト</button>
     </div>
-
-    <div id="quizContent"></div>
+    <div id="quizContent"><div class="loading">問題を読み込み中...</div></div>
   </div>
 </div>
 
@@ -189,53 +188,24 @@
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // ==========================================
-  // ダミー問題データ(あとでSupabaseから取得する形に差し替え予定)
-  // ==========================================
-  const dummyQuestions = [
-    {
-      id: "dummy1",
-      field: "Webセキュリティ",
-      body: "Webアプリケーションに対するクロスサイトスクリプティング(XSS)攻撃への対策として、最も適切なものはどれか。",
-      choices: {
-        "ア": "SQL文の組み立てにバインド機構を使用する",
-        "イ": "HTTPレスポンスヘッダにContent-Security-Policyを設定する",
-        "ウ": "パスワードをハッシュ化して保存する",
-        "エ": "セッションIDを推測困難な乱数で生成する"
-      },
-      answer: "イ",
-      explanation: "Content-Security-Policy(CSP)は、ブラウザが読み込み・実行できるリソースを制限するHTTPレスポンスヘッダであり、XSS攻撃による不正スクリプトの実行を防ぐ有効な対策です。\n\nア:SQLインジェクション対策です。\nウ:パスワード漏えい時の被害軽減策であり、XSS対策ではありません。\nエ:セッションハイジャック対策であり、XSS自体を防ぐものではありません。"
-    },
-    {
-      id: "dummy2",
-      field: "暗号技術",
-      body: "公開鍵暗号方式に関する記述のうち、適切なものはどれか。",
-      choices: {
-        "ア": "暗号化と復号に同じ鍵を使用する",
-        "イ": "鍵の配送に安全な経路が必須である",
-        "ウ": "公開鍵で暗号化したデータは、対応する秘密鍵でのみ復号できる",
-        "エ": "共通鍵暗号方式より暗号化・復号の処理速度が速い"
-      },
-      answer: "ウ",
-      explanation: "公開鍵暗号方式では、公開鍵で暗号化したデータは、対になる秘密鍵でのみ復号可能です。これにより、鍵配送問題を解決できます。\n\nア・イ:共通鍵暗号方式の特徴です。\nエ:公開鍵暗号方式は一般的に共通鍵暗号方式より処理が低速です。"
-    },
-    {
-      id: "dummy3",
-      field: "ネットワークセキュリティ",
-      body: "ファイアウォールにおけるステートフルインスペクション方式の特徴として、適切なものはどれか。",
-      choices: {
-        "ア": "パケットのヘッダ情報だけで許可・拒否を判定する",
-        "イ": "通信の状態(セッション)を管理し、一連の通信の文脈を踏まえて判定する",
-        "ウ": "アプリケーション層のデータ内容を検査対象としない",
-        "エ": "暗号化通信の中身を必ず復号して検査する"
-      },
-      answer: "イ",
-      explanation: "ステートフルインスペクションは、通信の状態(セッション情報)を保持・管理し、一連の通信の文脈(戻りのパケットかどうかなど)を踏まえて許可・拒否を判定する方式です。\n\nア:単純なパケットフィルタリング方式の説明です。\nエ:暗号化通信の復号は別の技術(SSLインスペクションなど)であり、ステートフルインスペクションの必須要件ではありません。"
-    }
-  ];
+  const fieldNames = {
+    crypto: "暗号技術",
+    auth: "認証・アクセス制御",
+    network: "ネットワークセキュリティ",
+    webapp: "Webアプリセキュリティ",
+    malware: "マルウェア対策",
+    vuln: "脆弱性管理",
+    secure_coding: "セキュアプログラミング",
+    incident: "インシデント対応・フォレンジック",
+    management: "セキュリティマネジメント",
+    law: "法律・規格・倫理",
+    cloud: "クラウド・ゼロトラスト"
+  };
 
+  let questions = [];
   let currentIndex = 0;
   let answered = false;
+  let currentUser = null;
 
   function showMessage(text) {
     document.getElementById('message').innerText = text;
@@ -271,22 +241,49 @@
   async function checkUser() {
     const { data: { user } } = await sb.auth.getUser();
     if (user) {
+      currentUser = user;
       document.getElementById('authForm').style.display = 'none';
       document.getElementById('quizArea').style.display = 'block';
       document.getElementById('userLabel').innerText = user.email;
-      currentIndex = 0;
-      renderQuestion();
+      await loadQuestions();
     } else {
+      currentUser = null;
       document.getElementById('authForm').style.display = 'block';
       document.getElementById('quizArea').style.display = 'none';
       showMessage("");
     }
   }
 
+  async function loadQuestions() {
+    const container = document.getElementById('quizContent');
+    container.innerHTML = '<div class="loading">問題を読み込み中...</div>';
+
+    const { data, error } = await sb.from('questions').select('*');
+
+    if (error) {
+      container.innerHTML = '<div class="loading">問題の読み込みに失敗しました: ' + error.message + '</div>';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="loading">問題が登録されていません。</div>';
+      return;
+    }
+
+    // ランダムに並び替え
+    questions = data.sort(() => Math.random() - 0.5);
+    currentIndex = 0;
+    renderQuestion();
+  }
+
   function renderQuestion() {
     answered = false;
-    const q = dummyQuestions[currentIndex];
+    const q = questions[currentIndex];
     const container = document.getElementById('quizContent');
+
+    const fieldLabel = (q.field_tags && q.field_tags.length > 0)
+      ? (fieldNames[q.field_tags[0]] || q.field_tags[0])
+      : "分野未設定";
 
     let choicesHtml = "";
     for (const key in q.choices) {
@@ -294,7 +291,8 @@
     }
 
     container.innerHTML = `
-      <div class="tag">${q.field}</div>
+      <div class="progress">${currentIndex + 1} / ${questions.length} 問</div>
+      <div class="tag">${fieldLabel}</div>
       <div class="question-body">${q.body}</div>
       <div id="choicesArea">${choicesHtml}</div>
       <div class="result-box" id="resultBox">
@@ -310,21 +308,19 @@
     if (answered) return;
     answered = true;
 
-    const q = dummyQuestions[currentIndex];
-    const isCorrect = (key === q.answer);
+    const q = questions[currentIndex];
+    const isCorrect = (key === q.official_answer);
 
-    // 選択肢の見た目を更新
     for (const k in q.choices) {
       const btn = document.getElementById('choice-' + k);
       btn.disabled = true;
-      if (k === q.answer) {
+      if (k === q.official_answer) {
         btn.classList.add('correct');
       } else if (k === key) {
         btn.classList.add('incorrect');
       }
     }
 
-    // 結果表示
     const resultBox = document.getElementById('resultBox');
     const resultTitle = document.getElementById('resultTitle');
     const expGain = document.getElementById('expGain');
@@ -337,7 +333,7 @@
     } else {
       resultTitle.innerText = "❌ 不正解";
       resultTitle.className = "result-title incorrect-text";
-      expGain.innerText = "+2 EXP(正解は " + q.answer + ")";
+      expGain.innerText = "+2 EXP(正解は " + q.official_answer + ")";
     }
 
     explanationText.innerText = q.explanation;
@@ -345,7 +341,7 @@
   }
 
   function nextQuestion() {
-    currentIndex = (currentIndex + 1) % dummyQuestions.length;
+    currentIndex = (currentIndex + 1) % questions.length;
     renderQuestion();
   }
 
