@@ -163,6 +163,107 @@
     margin-bottom: 8px;
     text-align: right;
   }
+  .deepdive {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #334155;
+  }
+  .deepdive-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #93c5fd;
+    margin-bottom: 12px;
+  }
+  .deepdive-history {
+    margin-bottom: 14px;
+  }
+  .deepdive-empty {
+    font-size: 12px;
+    color: #64748b;
+    padding: 4px 0;
+  }
+  .dd-msg {
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .dd-user {
+    background: #1e293b;
+    border: 1px solid #334155;
+  }
+  .dd-assistant {
+    background: #0f172a;
+    border: 1px solid #334155;
+  }
+  .dd-role {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 4px;
+  }
+  .dd-content {
+    white-space: pre-wrap;
+    color: #e2e8f0;
+  }
+  .deepdive-label {
+    display: block;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+  }
+  .deepdive-textarea {
+    width: 100%;
+    min-height: 70px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #fff;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .deepdive-btn {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: transparent;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-weight: bold;
+    margin: 0 0 10px;
+  }
+  .deepdive-btn.save {
+    background: #22c55e;
+    color: #0f172a;
+    border-color: #22c55e;
+  }
+  .deepdive-links {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .deepdive-link {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #6366f1;
+    color: #a5b4fc;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .deepdive-msg {
+    font-size: 12px;
+    text-align: center;
+    min-height: 16px;
+    margin-top: 4px;
+  }
 </style>
 </head>
 <body>
@@ -224,6 +325,15 @@
 
   function showMessage(text) {
     document.getElementById('message').innerText = text;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   async function signUp() {
@@ -314,6 +424,7 @@
         <div class="level-up" id="levelUpText" style="display:none;"></div>
         <div class="exp-gain" id="expGain"></div>
         <div class="explanation" id="explanationText"></div>
+        <div id="deepDiveArea"></div>
         <button onclick="nextQuestion()" style="margin-top:16px;">次の問題へ</button>
       </div>
     `;
@@ -367,6 +478,7 @@
     expGain.innerText = "+" + expGained + " EXP (難易度" + difficulty + ")";
     explanationText.innerText = q.explanation;
     resultBox.style.display = "block";
+    renderDeepDive(q);
 
     // ---- ここからSupabaseへの記録処理 ----
     try {
@@ -413,6 +525,135 @@
     }
     // ---- ここまで ----
   }
+
+  // ---- 解説の深掘り学習 ----
+  function buildPrompt(q, doubt) {
+    let choicesText = "";
+    for (const key in q.choices) {
+      choicesText += key + ". " + q.choices[key] + "\n";
+    }
+    return (
+      "情報処理安全確保支援士試験の問題です。公式解説の内容で分からない点があります。\n\n" +
+      "【問題】\n" + q.body + "\n\n" +
+      "【選択肢】\n" + choicesText + "\n" +
+      "【正解】" + q.official_answer + "\n\n" +
+      "【公式解説】\n" + (q.explanation || "") + "\n\n" +
+      "【私の疑問】\n" + doubt + "\n\n" +
+      "初学者にも分かるように、私の疑問に答えてください。"
+    );
+  }
+
+  function showDeepDiveMsg(text, isError) {
+    const el = document.getElementById('deepDiveMsg');
+    if (!el) return;
+    el.innerText = text;
+    el.style.color = isError ? '#f87171' : '#4ade80';
+  }
+
+  function renderDeepDive(q) {
+    const area = document.getElementById('deepDiveArea');
+    if (!area) return;
+    area.innerHTML = `
+      <div class="deepdive">
+        <div class="deepdive-title">🔍 この解説を深掘りする</div>
+        <div id="deepDiveHistory" class="deepdive-history"><div class="deepdive-empty">読み込み中...</div></div>
+        <label class="deepdive-label" for="doubtInput">疑問を入力</label>
+        <textarea id="doubtInput" class="deepdive-textarea" placeholder="例: なぜアは不正解なのか?"></textarea>
+        <button class="deepdive-btn" onclick="copyPrompt()">📋 プロンプトをコピー</button>
+        <div class="deepdive-links">
+          <a class="deepdive-link" href="https://claude.ai/new" target="_blank" rel="noopener">Claude.aiを開く</a>
+          <a class="deepdive-link" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPTを開く</a>
+        </div>
+        <label class="deepdive-label" for="answerInput">AIの回答を貼り付け</label>
+        <textarea id="answerInput" class="deepdive-textarea" placeholder="コピペ先で得た回答をここに貼り付け"></textarea>
+        <button class="deepdive-btn save" onclick="saveDeepDive()">💾 保存する</button>
+        <div id="deepDiveMsg" class="deepdive-msg"></div>
+      </div>
+    `;
+    loadDeepDiveHistory(q.id);
+  }
+
+  async function loadDeepDiveHistory(questionId) {
+    const box = document.getElementById('deepDiveHistory');
+    if (!box) return;
+    const { data, error } = await sb
+      .from('chat_messages')
+      .select('*')
+      .eq('question_id', questionId)
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      box.innerHTML = '<div class="deepdive-empty">履歴の読み込みに失敗しました</div>';
+      return;
+    }
+    if (!data || data.length === 0) {
+      box.innerHTML = '<div class="deepdive-empty">まだやり取りはありません</div>';
+      return;
+    }
+    let html = "";
+    for (const m of data) {
+      const isUser = (m.role === 'user');
+      html +=
+        '<div class="dd-msg ' + (isUser ? 'dd-user' : 'dd-assistant') + '">' +
+          '<div class="dd-role">' + (isUser ? '❓ 疑問' : '💡 回答') + '</div>' +
+          '<div class="dd-content">' + escapeHtml(m.content) + '</div>' +
+        '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  async function copyPrompt() {
+    const q = questions[currentIndex];
+    const doubt = (document.getElementById('doubtInput').value || '').trim();
+    if (!doubt) {
+      showDeepDiveMsg('先に疑問を入力してください', true);
+      return;
+    }
+    const text = buildPrompt(q, doubt);
+    try {
+      await navigator.clipboard.writeText(text);
+      showDeepDiveMsg('コピーしました。Claude.aiまたはChatGPTに貼り付けてください', false);
+      return;
+    } catch (e) {
+      // フォールバック(古いSafari / 非セキュアコンテキスト)
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+      showDeepDiveMsg(ok ? 'コピーしました' : 'コピーに失敗しました。手動で選択してコピーしてください', !ok);
+    }
+  }
+
+  async function saveDeepDive() {
+    const q = questions[currentIndex];
+    const doubt = (document.getElementById('doubtInput').value || '').trim();
+    const answer = (document.getElementById('answerInput').value || '').trim();
+    if (!doubt || !answer) {
+      showDeepDiveMsg('疑問と回答の両方を入力してください', true);
+      return;
+    }
+    const now = Date.now();
+    const { error } = await sb.from('chat_messages').insert([
+      { user_id: currentUser.id, question_id: q.id, role: 'user', content: doubt, created_at: new Date(now).toISOString() },
+      { user_id: currentUser.id, question_id: q.id, role: 'assistant', content: answer, created_at: new Date(now + 1).toISOString() }
+    ]);
+    if (error) {
+      showDeepDiveMsg('保存に失敗しました: ' + error.message, true);
+      return;
+    }
+    document.getElementById('doubtInput').value = '';
+    document.getElementById('answerInput').value = '';
+    showDeepDiveMsg('保存しました', false);
+    loadDeepDiveHistory(q.id);
+  }
+  // ---- ここまで ----
 
   function nextQuestion() {
     currentIndex = (currentIndex + 1) % questions.length;
